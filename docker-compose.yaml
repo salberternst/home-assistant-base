@@ -1,0 +1,90 @@
+version: '3.9'
+
+x-mysql-env: &mysql-env
+  MYSQL_USER: home-assistant
+  MYSQL_DATABASE: home-assistant-data
+  MYSQL_PASSWORD: ${MYSQL_PASSWORD} 
+  MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+
+x-influxdb-env: &influxdb-env
+  DOCKER_INFLUXDB_INIT_MODE: setup
+  DOCKER_INFLUXDB_INIT_USERNAME: admin
+  DOCKER_INFLUXDB_INIT_ORG: home-assistant
+  DOCKER_INFLUXDB_INIT_BUCKET: home-assistant-data
+  DOCKER_INFLUXDB_INIT_PASSWORD: ${DOCKER_INFLUXDB_INIT_PASSWORD}
+  DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: ${DOCKER_INFLUXDB_INIT_ADMIN_TOKEN}
+
+services:
+
+  home-assistant:
+    container_name: homeassistant
+    image: ghcr.io/salberternst/home-assistant-image:main
+    volumes:
+      - home_assistant_data:/config
+      - /etc/localtime:/etc/localtime:ro
+    restart: unless-stopped
+    privileged: true
+    network_mode: host
+    depends_on:
+      home-assistant-init:
+        condition: service_completed_successfully
+
+  home-assistant-init:
+    image: ghcr.io/salberternst/home-assistant-init:main
+    restart: on-failure:5
+    privileged: true
+    volumes: 
+      - /var/run/docker.sock:/var/run/docker.sock
+      - home_assistant_data:/config
+    environment:
+      <<: *mysql-env
+      <<: *influxdb-env
+    depends_on:
+      influxdb:
+        condition: service_started
+      mariadb:
+        condition: service_started
+
+  mosquitto:
+    image: eclipse-mosquitto:2.0.14 
+    restart: unless-stopped
+    ports:
+      - 1883:1883
+    configs:
+      - source: mosquitto_config
+        target: /mosquitto/config/mosquitto.conf
+      - source: mosquitte_passwd_config
+        target: /mosquitto/config/mosquitto.passwd
+    volumes:
+      - mosquitto_data:/data
+  
+  influxdb:
+    image: influxdb:2.2-alpine
+    restart: unless-stopped
+    ports:
+      - 8086:8086
+    environment:
+      <<: *influxdb-env
+
+  mariadb:
+    image: mariadb:10.7.4
+    restart: unless-stopped
+    ports:
+      - 3306:3306 
+    environment:
+      <<: *mysql-env
+    volumes:
+      - mariadb_data:/var/lib/mysql
+
+volumes:
+  mosquitto_data:
+  home_assistant_data:
+  letsencrypt_data:
+  mariadb_data:
+
+    
+configs:
+  mosquitto_config:
+    file: ./config/mosquitto/mosquitto.conf
+  mosquitte_passwd_config:
+    file: ./.mosquitto.pwd
