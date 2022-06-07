@@ -18,7 +18,7 @@ services:
 
   home-assistant:
     container_name: homeassistant
-    image: ghcr.io/salberternst/home-assistant-image:main
+    image: ghcr.io/salberternst/home-assistant-docker:main
     volumes:
       - home_assistant_data:/config
       - /etc/localtime:/etc/localtime:ro
@@ -30,7 +30,7 @@ services:
         condition: service_completed_successfully
 
   home-assistant-init:
-    image: ghcr.io/salberternst/home-assistant-init:main
+    image: ghcr.io/salberternst/home-assistant-docker-init:main
     restart: on-failure:5
     privileged: true
     volumes: 
